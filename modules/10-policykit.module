@@ -1,0 +1,8 @@
+[Module]
+Name=PolicyKit Agent
+Description=Privilege escalation handler for admin tasks
+Exec=/usr/bin/lxqt-policykit-agent
+Sequence=10
+Required=true
+Dependencies=
+Condition=x11

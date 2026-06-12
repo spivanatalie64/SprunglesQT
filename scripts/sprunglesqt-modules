@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""
+SprunglesQT Module Manager
+Sequential module launcher for the SprunglesQT desktop environment.
+
+Replaces: LXQt's scattered autostart .desktop module system with a centralized,
+ordered, dependency-aware module loader.
+
+Usage:
+    sprunglesqt-modules start       Launch all enabled modules sequentially
+    sprunglesqt-modules stop        Stop all running modules
+    sprunglesqt-modules restart     Restart all modules
+    sprunglesqt-modules list        List modules with status
+    sprunglesqt-modules status      Show running/stopped modules
+    sprunglesqt-modules enable  <name>  Enable a module
+    sprunglesqt-modules disable <name>  Disable a module
+    sprunglesqt-modules info    <name>  Show module details
+"""
+
+import sys
+import os
+import time
+import signal
+import subprocess
+import configparser
+import json
+import shutil
+from pathlib import Path
+from typing import Optional
+
+
+# ─── Constants ───────────────────────────────────────────────────────────────
+
+SYSTEM_MODULES_DIR = Path("/usr/share/sprunglesqt/modules")
+USER_MODULES_DIR = Path.home() / ".config" / "sprunglesqt" / "modules"
+MODULES_ENABLED_DIR = Path.home() / ".config" / "sprunglesqt" / "modules-enabled"
+MODULES_CONFIG = Path.home() / ".config" / "sprunglesqt" / "modules.conf"
+STATE_FILE = Path("/tmp") / "sprunglesqt-modules.state"
+
+# ─── ANSI Colors ─────────────────────────────────────────────────────────────
+
+class Color:
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+
+# ─── Module Definition ───────────────────────────────────────────────────────
+
+class Module:
+    """Represents a single SprunglesQT module."""
+
+    def __init__(self, name: str, filepath: Path, source: str = "system"):
+        self.name = name
+        self.filepath = filepath
+        self.source = source  # "system" or "user"
+        self.display_name = name
+        self.description = ""
+        self.exec_cmd = ""
+        self.args = ""
+        self.sequence = 50
+        self.required = False
+        self.enabled = True
+        self.dependencies = []
+        self.condition = ""
+        self.process: Optional[subprocess.Popen] = None
+        self._parse()
+
+    def _parse(self):
+        config = configparser.ConfigParser()
+        try:
+            config.read(str(self.filepath))
+        except Exception:
+            return
+
+        if not config.has_section("Module"):
+            return
+
+        section = config["Module"]
+        self.display_name = section.get("Name", self.name)
+        self.description = section.get("Description", "")
+        self.exec_cmd = section.get("Exec", "")
+        self.args = section.get("Args", "")
+        self.sequence = int(section.get("Sequence", "50"))
+        self.required = section.getboolean("Required", fallback=False)
+        self.enabled = section.getboolean("Enabled", fallback=True)
+        deps = section.get("Dependencies", "")
+        self.dependencies = [d.strip() for d in deps.split(",") if d.strip()]
+        self.condition = section.get("Condition", "")
+
+    @property
+    def full_command(self) -> str:
+        if self.args:
+            return f"{self.exec_cmd} {self.args}"
+        return self.exec_cmd
+
+    @property
+    def status_text(self) -> str:
+        if self.process is None:
+            return f"{Color.DIM}stopped{Color.RESET}"
+        ret = self.process.poll()
+        if ret is None:
+            return f"{Color.GREEN}running{Color.RESET}"
+        return f"{Color.RED}exited ({ret}){Color.RESET}"
+
+    def __repr__(self):
+        return f"<Module {self.name} seq={self.sequence} enabled={self.enabled}>"
+
+
+# ─── Module Manager ──────────────────────────────────────────────────────────
+
+class ModuleManager:
+    """Loads, orders, and launches modules sequentially."""
+
+    def __init__(self):
+        self.modules: dict[str, Module] = {}
+        self._load_modules()
+
+    def _load_modules(self):
+        """Load all module definitions. User modules override system ones."""
+        self.modules.clear()
+
+        # Load system modules
+        if SYSTEM_MODULES_DIR.exists():
+            for f in sorted(SYSTEM_MODULES_DIR.glob("*.module")):
+                name = f.stem.split("-", 1)[1] if "-" in f.stem else f.stem
+                # Extract the actual module name from the sequence-prefixed filename
+                # Format: NNN-name.module
+                parts = f.stem.split("-", 1)
+                name = parts[1] if len(parts) > 1 else parts[0]
+                self.modules[name] = Module(name, f, source="system")
+
+        # Load/override with user modules
+        if USER_MODULES_DIR.exists():
+            for f in sorted(USER_MODULES_DIR.glob("*.module")):
+                parts = f.stem.split("-", 1)
+                name = parts[1] if len(parts) > 1 else parts[0]
+                self.modules[name] = Module(name, f, source="user")
+
+        # Check modules-enabled directory for enable/disable overrides
+        if MODULES_ENABLED_DIR.exists():
+            for name, mod in self.modules.items():
+                enabled_link = MODULES_ENABLED_DIR / name
+                disabled_link = MODULES_ENABLED_DIR / f"{name}.disabled"
+                if enabled_link.exists():
+                    mod.enabled = True
+                elif disabled_link.exists():
+                    mod.enabled = False
+
+    def get_sorted(self) -> list[Module]:
+        """Return modules sorted by sequence number."""
+        return sorted(self.modules.values(), key=lambda m: m.sequence)
+
+    def get_enabled(self) -> list[Module]:
+        """Return enabled modules sorted by sequence."""
+        return [m for m in self.get_sorted() if m.enabled]
+
+    def get_by_name(self, name: str) -> Optional[Module]:
+        return self.modules.get(name)
+
+    def _check_dependencies(self, module: Module) -> bool:
+        """Check if all dependencies of a module are running."""
+        for dep_name in module.dependencies:
+            dep = self.modules.get(dep_name)
+            if dep and (dep.process is None or dep.process.poll() is not None):
+                return False
+        return True
+
+    def _check_condition(self, module: Module) -> bool:
+        """Check if a module's condition is met."""
+        cond = module.condition.lower()
+        if not cond:
+            return True
+        if cond == "x11":
+            return os.environ.get("XDG_SESSION_TYPE", "").lower() == "x11"
+        if cond == "wayland":
+            return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+        if cond.startswith("has-"):
+            prog = cond[4:]
+            return shutil.which(prog) is not None
+        return True
+
+    def start(self):
+        """Launch all enabled modules sequentially."""
+        enabled = self.get_enabled()
+        if not enabled:
+            print(f"{Color.YELLOW}No modules enabled.{Color.RESET}")
+            return
+
+        print(f"{Color.BOLD}SprunglesQT Module Manager{Color.RESET}")
+        print(f"Starting {len(enabled)} module(s) sequentially...\n")
+
+        for module in enabled:
+            if not self._check_condition(module):
+                print(f"  {Color.DIM}[SKIP] {module.display_name} (condition '{module.condition}' not met){Color.RESET}")
+                continue
+
+            # Wait for dependencies
+            max_wait = 30  # seconds
+            waited = 0
+            while not self._check_dependencies(module) and waited < max_wait:
+                time.sleep(0.5)
+                waited += 0.5
+
+            if not self._check_dependencies(module):
+                print(f"  {Color.RED}[FAIL] {module.display_name} — dependencies not met after {max_wait}s{Color.RESET}")
+                if module.required:
+                    print(f"  {Color.RED}        Required module failed. Aborting.{Color.RESET}")
+                    self._save_state()
+                    sys.exit(1)
+                continue
+
+            # Launch the module
+            cmd = module.full_command
+            print(f"  [{module.sequence:3d}] {module.display_name}... ", end="", flush=True)
+
+            try:
+                module.process = subprocess.Popen(
+                    cmd, shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+                # Give it a moment to start
+                time.sleep(0.3)
+                ret = module.process.poll()
+                if ret is not None and ret != 0:
+                    print(f"{Color.RED}FAILED (exit code {ret}){Color.RESET}")
+                    if module.required:
+                        print(f"  {Color.RED}       Required module failed. Aborting.{Color.RESET}")
+                        self._save_state()
+                        sys.exit(1)
+                else:
+                    print(f"{Color.GREEN}OK{Color.RESET}")
+            except FileNotFoundError:
+                print(f"{Color.RED}NOT FOUND ({cmd}){Color.RESET}")
+                if module.required:
+                    print(f"  {Color.RED}       Required module not found. Aborting.{Color.RESET}")
+                    self._save_state()
+                    sys.exit(1)
+            except Exception as e:
+                print(f"{Color.RED}ERROR ({e}){Color.RESET}")
+
+        print(f"\n{Color.GREEN}All modules started.{Color.RESET}")
+        self._save_state()
+
+    def stop(self):
+        """Stop all running modules (in reverse order)."""
+        running = [m for m in self.get_sorted() if m.process and m.process.poll() is None]
+        if not running:
+            print("No modules are running.")
+            return
+
+        print(f"Stopping {len(running)} module(s)...")
+        for module in reversed(running):
+            print(f"  Stopping {module.display_name}... ", end="", flush=True)
+            try:
+                # Try graceful first
+                module.process.terminate()
+                try:
+                    module.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    module.process.kill()
+                    module.process.wait(timeout=2)
+                print(f"{Color.GREEN}stopped{Color.RESET}")
+            except Exception as e:
+                print(f"{Color.RED}{e}{Color.RESET}")
+            module.process = None
+
+        self._save_state()
+
+    def restart(self):
+        """Restart all modules."""
+        self.stop()
+        time.sleep(0.5)
+        self.start()
+
+    def _get_running_pids(self) -> dict[str, int]:
+        """Read running module PIDs from state file."""
+        try:
+            with open(STATE_FILE) as f:
+                state = json.load(f)
+            pids = {}
+            for name, info in state.get("modules", {}).items():
+                pid = info.get("pid")
+                if pid and info.get("running"):
+                    # Verify the PID is actually alive
+                    try:
+                        os.kill(pid, 0)
+                        pids[name] = pid
+                    except OSError:
+                        pass
+            return pids
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def list_modules(self):
+        """List all modules with their status."""
+        self._load_modules()
+        modules = self.get_sorted()
+        running_pids = self._get_running_pids()
+
+        print(f"{Color.BOLD}{'Seq':>4}  {'Module':<22} {'Status':<12} {'Source':<8} {'Required'}{Color.RESET}")
+        print("-" * 70)
+        for m in modules:
+            pid = running_pids.get(m.name)
+            if pid:
+                status = f"{Color.GREEN}running (PID {pid}){Color.RESET}"
+            elif m.enabled:
+                status = f"{Color.YELLOW}stopped{Color.RESET}"
+            else:
+                status = f"{Color.DIM}disabled{Color.RESET}"
+            req = f"{Color.RED}yes{Color.RESET}" if m.required else "no"
+            src = f"{Color.DIM}user{Color.RESET}" if m.source == "user" else "system"
+            print(f"  {m.sequence:3d}  {m.display_name:<22} {status:<35} {src:<8} {req}")
+
+    def show_status(self):
+        """Show status of running modules only."""
+        self._load_modules()
+        running_pids = self._get_running_pids()
+
+        if not running_pids:
+            print(f"{Color.YELLOW}No modules currently running.{Color.RESET}")
+            return
+
+        print(f"{Color.BOLD}Running modules:{Color.RESET}")
+        for name, pid in running_pids.items():
+            mod = self.modules.get(name)
+            display = mod.display_name if mod else name
+            cmd = mod.full_command if mod else "?"
+            print(f"  {Color.GREEN}●{Color.RESET} {display:<22} (PID {pid}) ({Color.DIM}{cmd}{Color.RESET})")
+
+    def show_info(self, name: str):
+        """Show detailed info about a module."""
+        module = self.get_by_name(name)
+        if not module:
+            print(f"{Color.RED}Module '{name}' not found.{Color.RESET}")
+            return
+
+        print(f"{Color.BOLD}{module.display_name}{Color.RESET}")
+        print(f"  {'Name:':<16} {module.name}")
+        print(f"  {'Description:':<16} {module.description}")
+        print(f"  {'Command:':<16} {module.full_command}")
+        print(f"  {'Sequence:':<16} {module.sequence}")
+        print(f"  {'Required:':<16} {'yes' if module.required else 'no'}")
+        print(f"  {'Enabled:':<16} {'yes' if module.enabled else 'no'}")
+        print(f"  {'Dependencies:':<16} {', '.join(module.dependencies) or 'none'}")
+        print(f"  {'Condition:':<16} {module.condition or 'none'}")
+        print(f"  {'Source:':<16} {module.source}")
+        running_pids = self._get_running_pids()
+        pid = running_pids.get(module.name)
+        if pid:
+            print(f"  {'Status:':<16} {Color.GREEN}running{Color.RESET}")
+            print(f"  {'PID:':<16} {pid}")
+        elif module.enabled:
+            print(f"  {'Status:':<16} {Color.YELLOW}stopped{Color.RESET}")
+        else:
+            print(f"  {'Status:':<16} {Color.DIM}disabled{Color.RESET}")
+
+    def enable(self, name: str):
+        """Enable a module."""
+        module = self.get_by_name(name)
+        if not module:
+            print(f"{Color.RED}Module '{name}' not found.{Color.RESET}")
+            return
+        MODULES_ENABLED_DIR.mkdir(parents=True, exist_ok=True)
+        (MODULES_ENABLED_DIR / name).touch()
+        disabled = MODULES_ENABLED_DIR / f"{name}.disabled"
+        if disabled.exists():
+            disabled.unlink()
+        module.enabled = True
+        print(f"{Color.GREEN}Enabled module: {module.display_name}{Color.RESET}")
+
+    def disable(self, name: str):
+        """Disable a module."""
+        module = self.get_by_name(name)
+        if not module:
+            print(f"{Color.RED}Module '{name}' not found.{Color.RESET}")
+            return
+        MODULES_ENABLED_DIR.mkdir(parents=True, exist_ok=True)
+        (MODULES_ENABLED_DIR / f"{name}.disabled").touch()
+        enabled = MODULES_ENABLED_DIR / name
+        if enabled.exists():
+            enabled.unlink()
+        module.enabled = False
+        print(f"{Color.DIM}Disabled module: {module.display_name}{Color.RESET}")
+
+    def _save_state(self):
+        """Save current module state to a temp file for monitoring."""
+        state = {}
+        for m in self.modules.values():
+            pid = m.process.pid if m.process and m.process.poll() is None else None
+            state[m.name] = {
+                "display_name": m.display_name,
+                "pid": pid,
+                "running": pid is not None,
+                "enabled": m.enabled,
+                "required": m.required,
+                "sequence": m.sequence,
+            }
+        try:
+            with open(STATE_FILE, "w") as f:
+                json.dump({"modules": state, "timestamp": time.time()}, f)
+        except Exception:
+            pass
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+def print_usage():
+    print(__doc__)
+    sys.exit(1)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_usage()
+
+    command = sys.argv[1]
+    mgr = ModuleManager()
+
+    if command == "start":
+        mgr.start()
+    elif command == "stop":
+        mgr.stop()
+    elif command == "restart":
+        mgr.restart()
+    elif command == "list":
+        mgr.list_modules()
+    elif command == "status":
+        mgr.show_status()
+    elif command == "info":
+        if len(sys.argv) < 3:
+            print("Usage: sprunglesqt-modules info <module_name>")
+            sys.exit(1)
+        mgr.show_info(sys.argv[2])
+    elif command == "enable":
+        if len(sys.argv) < 3:
+            print("Usage: sprunglesqt-modules enable <module_name>")
+            sys.exit(1)
+        mgr.enable(sys.argv[2])
+    elif command == "disable":
+        if len(sys.argv) < 3:
+            print("Usage: sprunglesqt-modules disable <module_name>")
+            sys.exit(1)
+        mgr.disable(sys.argv[2])
+    else:
+        print(f"Unknown command: {command}")
+        print_usage()
+
+
+if __name__ == "__main__":
+    main()

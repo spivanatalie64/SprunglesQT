@@ -1,0 +1,9 @@
+[Module]
+Name=Notifications
+Description=On-screen notification daemon
+Exec=/usr/bin/lxqt-notificationd
+Sequence=40
+Required=false
+Dependencies=
+Condition=x11
+Enabled=false

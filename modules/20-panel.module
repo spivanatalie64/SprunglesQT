@@ -1,0 +1,8 @@
+[Module]
+Name=Panel
+Description=The bottom bar with taskbar, menu, tray, and clock
+Exec=/usr/bin/lxqt-panel
+Sequence=20
+Required=true
+Dependencies=policykit
+Condition=x11

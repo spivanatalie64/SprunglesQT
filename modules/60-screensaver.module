@@ -1,0 +1,10 @@
+[Module]
+Name=Screen Saver
+Description=XScreenSaver daemon
+Exec=/usr/bin/xscreensaver
+Args=-no-splash
+Sequence=60
+Required=false
+Dependencies=
+Condition=x11
+Enabled=false

@@ -1,0 +1,9 @@
+[Module]
+Name=Global Keyboard Shortcuts
+Description=Global keyboard shortcut daemon
+Exec=/usr/bin/lxqt-globalkeysd
+Sequence=30
+Required=false
+Dependencies=
+Condition=x11
+Enabled=false

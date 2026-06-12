@@ -604,6 +604,155 @@ Terminal=false
                 QMessageBox.critical(self, "Error", f"Failed to remove:\n{e}")
 
 
+class ModulesPage(QWidget):
+    """Manage SprunglesQT modules — enable, disable, reorder."""
+
+    def __init__(self):
+        super().__init__()
+        self.setup_ui()
+        self.refresh()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        title = QLabel("Modules")
+        title.setObjectName("pageTitle")
+        desc = QLabel("Manage SprunglesQT desktop modules — enable, disable, and control startup order")
+        desc.setObjectName("pageDesc")
+        layout.addWidget(title)
+        layout.addWidget(desc)
+
+        # Module list
+        self.module_list = QListWidget()
+        self.module_list.setAlternatingRowColors(True)
+        self.module_list.setMinimumHeight(200)
+        layout.addWidget(self.module_list)
+
+        # Control buttons
+        btn_layout = QHBoxLayout()
+        self.enable_btn = QPushButton("Enable Selected")
+        self.enable_btn.clicked.connect(self.enable_module)
+        self.disable_btn = QPushButton("Disable Selected")
+        self.disable_btn.setObjectName("danger")
+        self.disable_btn.clicked.connect(self.disable_module)
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.clicked.connect(self.refresh)
+
+        btn_layout.addWidget(self.enable_btn)
+        btn_layout.addWidget(self.disable_btn)
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.refresh_btn)
+        layout.addLayout(btn_layout)
+
+        # Info display
+        self.info_label = QLabel("Select a module to see details")
+        self.info_label.setWordWrap(True)
+        self.info_label.setStyleSheet("color: #9a9a9a; font-size: 12px; padding: 8px; background-color: #1e1e1e; border-radius: 4px;")
+        self.info_label.setMinimumHeight(60)
+        layout.addWidget(self.info_label)
+
+        self.module_list.currentItemChanged.connect(self.show_info)
+
+        layout.addStretch()
+
+    def refresh(self):
+        self.module_list.clear()
+        try:
+            output = subprocess.check_output(
+                ["sprunglesqt-modules", "list"], stderr=subprocess.DEVNULL, timeout=10
+            ).decode()
+        except Exception as e:
+            self.info_label.setText(f"Error running module manager: {e}")
+            return
+
+        for line in output.splitlines():
+            # Parse lines like: "   10  PolicyKit Agent        enabled  system  yes"
+            if line.strip() and line.strip()[0].isdigit():
+                parts = line.split()
+                if len(parts) >= 5:
+                    seq = parts[0]
+                    name = parts[1]
+                    status = parts[-3] if len(parts) >= 5 else "?"
+                    source = parts[-2] if len(parts) >= 5 else "?"
+                    required = parts[-1] if len(parts) >= 5 else "?"
+
+                    # Find the actual end of the name (between seq and status)
+                    # Name is everything between position of first digit and -3 from end
+                    first_digit_end = line.find(parts[0]) + len(parts[0])
+                    status_start = line.rfind(parts[-3]) if len(parts) >= 3 else 0
+                    full_name = line[first_digit_end:status_start].strip()
+
+                    item = QListWidgetItem(f"  [{seq:>3}] {full_name}")
+                    item.setData(Qt.ItemDataRole.UserRole, {
+                        "name": name,
+                        "seq": seq,
+                        "status": status,
+                        "source": source,
+                        "required": required,
+                        "full_name": full_name,
+                    })
+                    if "running" in status or "enabled" in status:
+                        item.setForeground(QColor("#8bc34a"))
+                    elif "disabled" in status:
+                        item.setForeground(QColor("#666666"))
+                    else:
+                        item.setForeground(QColor("#ff5252"))
+                    self.module_list.addItem(item)
+
+    def enable_module(self):
+        item = self.module_list.currentItem()
+        if not item:
+            QMessageBox.warning(self, "Error", "Select a module")
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        try:
+            subprocess.run(["sprunglesqt-modules", "enable", data["name"]],
+                         check=True, timeout=10)
+            QMessageBox.information(self, "Modules",
+                f"Enabled: {data['full_name']}\nReboot or run 'sprunglesqt-modules start' to activate.")
+            self.refresh()
+        except subprocess.CalledProcessError as e:
+            QMessageBox.critical(self, "Error", f"Failed: {e}")
+
+    def disable_module(self):
+        item = self.module_list.currentItem()
+        if not item:
+            QMessageBox.warning(self, "Error", "Select a module")
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        reply = QMessageBox.question(self, "Confirm",
+            f"Disable '{data['full_name']}'? It will not start on next login.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                subprocess.run(["sprunglesqt-modules", "disable", data["name"]],
+                             check=True, timeout=10)
+                self.refresh()
+            except subprocess.CalledProcessError as e:
+                QMessageBox.critical(self, "Error", f"Failed: {e}")
+
+    def show_info(self, current, previous):
+        if not current:
+            self.info_label.setText("Select a module to see details")
+            return
+        data = current.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        try:
+            output = subprocess.check_output(
+                ["sprunglesqt-modules", "info", data["name"]],
+                stderr=subprocess.DEVNULL, timeout=5
+            ).decode()
+            self.info_label.setText(output)
+        except Exception as e:
+            self.info_label.setText(f"Error: {e}")
+
+
 class AboutPage(QWidget):
     def __init__(self):
         super().__init__()
@@ -744,11 +893,13 @@ class SprunglesSettings(QMainWindow):
         self.display_page = DisplayPage()
         self.appearance_page = AppearancePage()
         self.session_page = SessionPage()
+        self.modules_page = ModulesPage()
         self.about_page = AboutPage()
 
         self.pages.addWidget(self.display_page)
         self.pages.addWidget(self.appearance_page)
         self.pages.addWidget(self.session_page)
+        self.pages.addWidget(self.modules_page)
         self.pages.addWidget(self.about_page)
 
         # Nav items
@@ -756,7 +907,8 @@ class SprunglesSettings(QMainWindow):
             ("🖥️  Display", 0),
             ("🎨  Appearance", 1),
             ("⚙️  Session", 2),
-            ("☕  About SprunglesQT", 3),
+            ("🧩  Modules", 3),
+            ("☕  About SprunglesQT", 4),
         ]
         for label, idx in pages_data:
             item = QListWidgetItem(label)

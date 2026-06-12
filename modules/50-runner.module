@@ -1,0 +1,9 @@
+[Module]
+Name=Application Runner
+Description=Alt+F2 application launcher
+Exec=/usr/bin/lxqt-runner
+Sequence=50
+Required=false
+Dependencies=
+Condition=x11
+Enabled=false
