@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SprunglesQT Settings
+Comment=Configure display, appearance, and session settings
+Exec=sprunglesqt-settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;DesktopSettings;

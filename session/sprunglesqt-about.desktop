@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=About SprunglesQT
+Comment=About SprunglesQT — the ultra-lightweight Qt desktop
+Exec=sprunglesqt-about
+Icon=help-about
+Terminal=true
+Categories=Settings;DesktopSettings;
