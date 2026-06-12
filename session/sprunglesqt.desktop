@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=startlxqt
+TryExec=lxqt-session
+DesktopNames=SprunglesQT;LXQt
+
+Name=SprunglesQT Desktop
+Comment=The ultra-lightweight Qt desktop — stripped of bloat, built for speed
+GenericName=SprunglesQT Desktop Environment

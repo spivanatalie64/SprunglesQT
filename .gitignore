@@ -1,0 +1,24 @@
+# Editor/IDE droppings
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Secrets & keys
+*.key
+*.pem
+.env
+.env.*
+secrets/
+
+# Personal config stubs (users customize their own)
+personal/
