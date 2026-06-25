@@ -1,0 +1,61 @@
+# Maintainer: SprunglesQT Developers
+
+pkgname=sprunglesqt
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Ultra-lightweight Qt desktop environment — stripped of bloat, built for speed (LXQt fork)"
+arch=('any')
+url="https://github.com/spivanatalie64/SprunglesQT"
+license=('LGPL-3.0-or-later')
+depends=(
+  'lxqt-session'
+  'lxqt-panel'
+  'lxqt-runner'
+  'lxqt-notificationd'
+  'lxqt-globalkeys'
+  'lxqt-policykit'
+  'policykit-1'
+  'python'
+  'python-pyqt6'
+  'qt6-svg'
+  'xorg-xrandr'
+  'bspwm'
+)
+install=sprunglesqt.install
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+
+  # Scripts -> /usr/bin/
+  install -Dm755 scripts/about.sh "${pkgdir}/usr/bin/sprunglesqt-about"
+  install -Dm755 scripts/setup.sh "${pkgdir}/usr/bin/sprunglesqt-setup"
+  install -Dm755 scripts/sprunglesqt-modules "${pkgdir}/usr/bin/sprunglesqt-modules"
+  install -Dm755 scripts/sprunglesqt-settings.py "${pkgdir}/usr/bin/sprunglesqt-settings"
+
+  # Session desktop files
+  install -Dm644 session/sprunglesqt.desktop "${pkgdir}/usr/share/wayland-sessions/sprunglesqt.desktop"
+  install -Dm644 session/sprunglesqt.desktop "${pkgdir}/usr/share/xsessions/sprunglesqt.desktop"
+  install -Dm644 session/sprunglesqt-settings.desktop "${pkgdir}/usr/share/applications/sprunglesqt-settings.desktop"
+  install -Dm644 session/sprunglesqt-about.desktop "${pkgdir}/usr/share/applications/sprunglesqt-about.desktop"
+
+  # Config -> /etc/xdg/lxqt/
+  install -Dm644 config/env "${pkgdir}/etc/xdg/lxqt/env"
+  install -Dm644 config/lxqt.conf "${pkgdir}/etc/xdg/lxqt/lxqt.conf"
+  install -Dm644 config/panel.conf "${pkgdir}/etc/xdg/lxqt/panel.conf"
+  install -Dm644 config/session.conf "${pkgdir}/etc/xdg/lxqt/session.conf"
+
+  # Modules -> /usr/share/sprunglesqt/modules/
+  install -Dm644 modules/10-policykit.module "${pkgdir}/usr/share/sprunglesqt/modules/10-policykit.module"
+  install -Dm644 modules/20-panel.module "${pkgdir}/usr/share/sprunglesqt/modules/20-panel.module"
+  install -Dm644 modules/30-globalkeys.module "${pkgdir}/usr/share/sprunglesqt/modules/30-globalkeys.module"
+  install -Dm644 modules/40-notifications.module "${pkgdir}/usr/share/sprunglesqt/modules/40-notifications.module"
+  install -Dm644 modules/50-runner.module "${pkgdir}/usr/share/sprunglesqt/modules/50-runner.module"
+  install -Dm644 modules/60-screensaver.module "${pkgdir}/usr/share/sprunglesqt/modules/60-screensaver.module"
+
+  # Branding -> /usr/share/sprunglesqt/branding/
+  install -Dm644 branding/logo.svg "${pkgdir}/usr/share/sprunglesqt/branding/logo.svg"
+  install -Dm644 branding/about-icon.svg "${pkgdir}/usr/share/sprunglesqt/branding/about-icon.svg"
+  install -Dm644 branding/settings-icon.svg "${pkgdir}/usr/share/sprunglesqt/branding/settings-icon.svg"
+}
