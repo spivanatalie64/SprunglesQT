@@ -1,0 +1,206 @@
+/* ========================================================================== */
+/*  SprunglesQT — Panel Stylesheet                                           */
+/*  Dark purple/coffee theme for the ultra-lightweight Qt desktop             */
+/* ========================================================================== */
+
+/* ── Panel Background ───────────────────────────────────────────────────── */
+#LXQtPanel, .QFrame#backgroundFrame {
+    background-color: #1a1a2e;
+    border: none;
+    border-top: 1px solid #2a2a4e;
+}
+
+#LXQtPanel[position="top"] {
+    border-top: none;
+    border-bottom: 1px solid #2a2a4e;
+}
+
+/* ── Main Menu Button ────────────────────────────────────────────────────── */
+QToolButton#MainMenuButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin: 2px;
+    color: #c084fc;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+QToolButton#MainMenuButton:hover {
+    background-color: #2a2a4e;
+    color: #e879f9;
+}
+
+QToolButton#MainMenuButton:pressed {
+    background-color: #3d427e;
+    color: #ffffff;
+}
+
+/* ── Taskbar ─────────────────────────────────────────────────────────────── */
+QFrame#TaskBar {
+    background-color: transparent;
+}
+
+QToolButton#TaskButton {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 3px;
+    padding: 2px 8px;
+    margin: 1px;
+    color: #a0a0b0;
+    font-size: 12px;
+}
+
+QToolButton#TaskButton:hover {
+    background-color: #252540;
+    color: #d0d0e0;
+}
+
+QToolButton#TaskButton:checked,
+QToolButton#TaskButton[active="true"] {
+    background-color: #1e1e3a;
+    border-bottom: 2px solid #7c3aed;
+    color: #e0e0f0;
+}
+
+QToolButton#TaskButton[urgent="true"] {
+    background-color: #3d2020;
+    border-bottom: 2px solid #ff4444;
+    color: #ff6666;
+}
+
+/* ── System Tray ──────────────────────────────────────────────────────────── */
+QFrame#SystemTray {
+    background-color: transparent;
+    padding: 0px;
+    margin: 0px;
+}
+
+QFrame#SystemTray QWidget {
+    background-color: transparent;
+}
+
+/* ── Desktop Switcher ────────────────────────────────────────────────────── */
+QFrame#DesktopSwitcher {
+    background-color: transparent;
+    padding: 2px;
+}
+
+QToolButton#DesktopButton {
+    background-color: #252540;
+    border: 1px solid #2a2a4e;
+    border-radius: 3px;
+    padding: 2px 6px;
+    margin: 1px;
+    color: #808090;
+    font-size: 11px;
+    min-width: 20px;
+}
+
+QToolButton#DesktopButton:hover {
+    background-color: #2e2e50;
+    border-color: #3d427e;
+    color: #a0a0b0;
+}
+
+QToolButton#DesktopButton:checked,
+QToolButton#DesktopButton[active="true"] {
+    background-color: #3d427e;
+    border-color: #7c3aed;
+    color: #ffffff;
+}
+
+/* ── World Clock ──────────────────────────────────────────────────────────── */
+QFrame#WorldClock {
+    background-color: transparent;
+    padding: 2px 10px;
+    color: #a0a0b0;
+    font-size: 12px;
+}
+
+QFrame#WorldClock:hover {
+    color: #e0e0e0;
+}
+
+/* ── Tooltips ─────────────────────────────────────────────────────────────── */
+QToolTip {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #3d427e;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* ── Popup Menus ──────────────────────────────────────────────────────────── */
+QMenu {
+    background-color: #1e1e3a;
+    color: #d0d0e0;
+    border: 1px solid #2a2a4e;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #3d427e;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #555560;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #2a2a4e;
+    margin: 4px 8px;
+}
+
+/* ── Volume Slider ─────────────────────────────────────────────────────────── */
+QSlider::groove:horizontal {
+    background-color: #252540;
+    border: 1px solid #2a2a4e;
+    border-radius: 3px;
+    height: 6px;
+}
+
+QSlider::handle:horizontal {
+    background-color: #7c3aed;
+    border: none;
+    border-radius: 5px;
+    width: 10px;
+    height: 10px;
+    margin: -4px 0;
+}
+
+QSlider::handle:horizontal:hover {
+    background-color: #9b59b6;
+}
+
+QSlider::sub-page:horizontal {
+    background-color: #7c3aed;
+    border-radius: 3px;
+}
+
+/* ── Status Notifier Area ─────────────────────────────────────────────────── */
+QFrame#StatusNotifier {
+    background-color: transparent;
+}
+
+QFrame#StatusNotifier QToolButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 3px;
+    padding: 2px;
+}
+
+QFrame#StatusNotifier QToolButton:hover {
+    background-color: #252540;
+}

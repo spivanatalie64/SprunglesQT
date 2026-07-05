@@ -77,8 +77,18 @@ mkdir -p ~/.local/share/applications
 cp session/sprunglesqt-settings.desktop ~/.local/share/applications/
 cp session/sprunglesqt-about.desktop ~/.local/share/applications/
 
+# Install theme
+echo "  [9/9] Installing SprunglesQT theme..."
+sudo mkdir -p /usr/share/lxqt/themes/SprunglesQT
+sudo cp themes/SprunglesQT/* /usr/share/lxqt/themes/SprunglesQT/ 2>/dev/null || {
+  # Fallback: copy to user local share
+  mkdir -p ~/.local/share/lxqt/themes/SprunglesQT
+  cp themes/SprunglesQT/* ~/.local/share/lxqt/themes/SprunglesQT/
+}
+echo "  ✓ Theme installed"
+
 # Enable only core modules, disable optional ones
-echo "  [9/9] Configuring default modules..."
+echo "  [10/10] Configuring default modules..."
 mkdir -p ~/.config/sprunglesqt/modules-enabled
 touch ~/.config/sprunglesqt/modules-enabled/policykit
 touch ~/.config/sprunglesqt/modules-enabled/panel
@@ -94,6 +104,7 @@ echo "                   sprunglesqt-modules enable  <name>"
 echo "                   sprunglesqt-modules disable <name>"
 echo "   Settings GUI:    sprunglesqt-settings"
 echo "   About:           sprunglesqt-about"
+echo "   Theme:           SprunglesQT (dark purple)"
 echo ""
 echo "   Select 'SprunglesQT Desktop' from your display manager."
 echo "   Or run 'sprunglesqt-modules start' to launch modules now."

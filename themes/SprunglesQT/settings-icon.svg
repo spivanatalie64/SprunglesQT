@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6f42c1"/>
+      <stop offset="100%" style="stop-color:#3d1f6e"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="8" fill="url(#bg)"/>
+  <!-- Gear icon -->
+  <circle cx="24" cy="24" r="8" fill="#2b2b2b" stroke="#e0e0e0" stroke-width="1.5"/>
+  <circle cx="24" cy="24" r="4" fill="#e0e0e0"/>
+  <path d="M24 12 L24 15 M24 33 L24 36 M12 24 L15 24 M33 24 L36 24" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M15.5 15.5 L17.5 17.5 M30.5 30.5 L32.5 32.5 M15.5 32.5 L17.5 30.5 M30.5 15.5 L32.5 17.5" stroke="#e0e0e0" stroke-width="2" stroke-linecap="round"/>
+</svg>
